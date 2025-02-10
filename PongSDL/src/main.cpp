@@ -147,6 +147,7 @@ private:
 
 	PADDLEID mID;
 };
+Texture gBGTexture;
 
 
 Texture gBallTexture;
@@ -443,7 +444,7 @@ bool init()
 		}
 
 		//Create window
-		gWindow = SDL_CreateWindow("SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+		gWindow = SDL_CreateWindow("PongSDL", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
 		if (gWindow == NULL)
 		{
 			printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
@@ -494,6 +495,12 @@ bool loadMedia()
 		printf("Failed to load paddle sprite texture!\n");
 	}
 
+	if (!gBGTexture.loadFromFile("res/gfx/Background.png"))
+	{
+		success = false;
+		printf("Failed to load background texture!\n");
+	}
+
 	return success;
 }
 
@@ -502,6 +509,7 @@ void close()
 	///Free Textures
 	gBallTexture.free();
 	gPaddleTexture.free();
+	gBGTexture.free();
 
 	//Destroy window	
 	SDL_DestroyRenderer(gRenderer);
@@ -584,6 +592,8 @@ void gameLoop()
 
 	gPaddle2.setPosition(610, gball.GetY() - 52);
 	gball.manageVelocity(gPaddle1.mCollider, gPaddle2.mCollider);
+
+	gBGTexture.render(0, 0);
 
 	gball.render();
 	gPaddle1.render();
