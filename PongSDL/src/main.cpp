@@ -1,4 +1,8 @@
-#pragma once
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#endif
+
 #include <cmath>
 #include <iostream>
 #include <SDL.h>
@@ -9,6 +13,7 @@
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
 
+SDL_Point touchLocation = { SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 };
 
 //The window we'll be rendering to
 SDL_Window* gWindow = NULL;
@@ -16,11 +21,16 @@ SDL_Window* gWindow = NULL;
 //The window renderer
 SDL_Renderer* gRenderer = NULL;
 
+int a = 0;
+
 //Starts up SDL and creates window
 bool init();
 
 //Loads media
 bool loadMedia();
+
+//Main loop flag
+bool quit = false;
 
 //Frees media and shuts down SDL
 void close();
@@ -203,42 +213,6 @@ bool Texture::loadFromFile(std::string path)
 	return mTexture != NULL;
 }
 
-#if defined(SDL_TTF_MAJOR_VERSION)
-bool Texture::loadFromRenderedText(std::string textureText, SDL_Color textColor)
-{
-	//Get rid of preexisting texture
-	free();
-
-	//Render text surface
-	SDL_Surface* textSurface = TTF_RenderText_Solid(gFont, textureText.c_str(), textColor);
-	if (textSurface == NULL)
-	{
-		printf("Unable to render text surface! SDL_ttf Error: %s\n", TTF_GetError());
-	}
-	else
-	{
-		//Create texture from surface pixels
-		mTexture = SDL_CreateTextureFromSurface(gRenderer, textSurface);
-		if (mTexture == NULL)
-		{
-			printf("Unable to create texture from rendered text! SDL Error: %s\n", SDL_GetError());
-		}
-		else
-		{
-			//Get image dimensions
-			mWidth = textSurface->w;
-			mHeight = textSurface->h;
-		}
-
-		//Get rid of old surface
-		SDL_FreeSurface(textSurface);
-	}
-
-	//Return success
-	return mTexture != NULL;
-}
-#endif
-
 void Texture::free()
 {
 	//Free texture if it exists
@@ -419,8 +393,13 @@ void paddle::handleEvent(SDL_Event* e)
 
 		if (e->type == SDL_MOUSEMOTION)
 		{
-			mPosition.y = y - 51;
-			mCollider.y = mPosition.y;
+			mCollider.y = mPosition.y = y - 51;
+		}
+		else if (e->type == SDL_FINGERMOTION)
+		{
+			touchLocation.x = e->tfinger.x * SCREEN_WIDTH;
+			touchLocation.y = e->tfinger.y * SCREEN_HEIGHT;
+			mCollider.y = mPosition.y = touchLocation.y - 51;
 		}
 	}
 	else if (mID == PADDLE_2)
@@ -580,10 +559,42 @@ bool checkCollision(SDL_Rect a, SDL_Rect b)
 	return true;
 }
 
+void gameLoop()
+{
+
+	//Event handler
+	SDL_Event e;
+	//Handle events on queue
+	while (SDL_PollEvent(&e) != 0)
+	{
+		//User requests quit
+		if (e.type == SDL_QUIT)
+		{
+			quit = true;
+			break;
+		}
+
+		gball.handleEvent(&e);
+		gPaddle1.handleEvent(&e);
+	}
+
+	//Clear screen
+	SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 0xFF);
+	SDL_RenderClear(gRenderer);
+
+	gPaddle2.setPosition(610, gball.GetY() - 52);
+	gball.manageVelocity(gPaddle1.mCollider, gPaddle2.mCollider);
+
+	gball.render();
+	gPaddle1.render();
+	gPaddle2.render();
+
+	//Update screen
+	SDL_RenderPresent(gRenderer);
+}
+
 int main(int argc, char* args[])
 {
-	gball.SetVelocityXY(10, 10);
-
 	//Start up SDL and create window
 	if (!init())
 	{
@@ -598,43 +609,16 @@ int main(int argc, char* args[])
 		}
 		else
 		{
-			//Main loop flag
-			bool quit = false;
-
-			//Event handler
-			SDL_Event e;
-
-			//While application is running
-			while (!quit)
-			{
-				//Handle events on queue
-				while (SDL_PollEvent(&e) != 0)
+			gball.SetVelocityXY(10, 10);
+			#ifdef __EMSCRIPTEN__
+				emscripten_set_main_loop(gameLoop, 0, 1);
+			#else
+				while (!quit)
 				{
-					//User requests quit
-					if (e.type == SDL_QUIT)
-					{
-						quit = true;
-					}
-
-					gball.handleEvent(&e);
-					gPaddle1.handleEvent(&e);
+					gameLoop();
+					SDL_Delay(16);
 				}
-
-				//Clear screen
-				SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-				SDL_RenderClear(gRenderer);
-
-
-				gPaddle2.setPosition(610, gball.GetY() - 52);
-				gball.manageVelocity(gPaddle1.mCollider, gPaddle2.mCollider);
-
-				gball.render();
-				gPaddle1.render();
-				gPaddle2.render();
-
-				//Update screen
-				SDL_RenderPresent(gRenderer);
-			}
+			#endif
 		}
 	}
 
