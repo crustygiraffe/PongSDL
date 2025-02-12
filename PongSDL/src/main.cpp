@@ -22,6 +22,8 @@ SDL_Window* gWindow = NULL;
 SDL_Renderer* gRenderer = NULL;
 
 int a = 0;
+int hitPoint = 1;
+bool playingGame = true;
 
 //Starts up SDL and creates window
 bool init();
@@ -43,6 +45,13 @@ enum PADDLEID
 	PADDLE_2 = 1,
 	PADDLE_1_2P = 2,
 	PADDLE_2_2P = 3
+};
+
+enum HITPOINT
+{
+	PADDLE_TOP = 0,
+	PADDLE_MIDDLE = 1,
+	PADDLE_BOTTOM = 2
 };
 
 class Texture
@@ -340,11 +349,37 @@ void ball::manageVelocity(SDL_Rect& paddle1, SDL_Rect& paddle2)
 	}
 	else if (checkCollision(mCollider, paddle1))
 	{
-		mVelocityX = 10;
+		if (hitPoint == PADDLE_TOP)
+		{
+			mVelocityX = 5;
+			mVelocityY = -10;
+		}
+		else if (hitPoint == PADDLE_MIDDLE)
+		{
+			mVelocityX = 10;
+		}
+		else if (hitPoint == PADDLE_BOTTOM)
+		{
+			mVelocityX = 5;
+			mVelocityY = 10;
+		}
 	}
 	else if (checkCollision(mCollider, paddle2))
 	{
-		mVelocityX = -10;
+		if (hitPoint == PADDLE_TOP)
+		{
+			mVelocityX = -5;
+			mVelocityY = -10;
+		}
+		else if (hitPoint == PADDLE_MIDDLE)
+		{
+			mVelocityX = -10;
+		}
+		else if (hitPoint == PADDLE_BOTTOM)
+		{
+			mVelocityX = -5;
+			mVelocityY = 10;
+		}
 	}
 	
 	if (mPosition.y + 30 >= 480 || mPosition.y <= 0)
@@ -562,6 +597,19 @@ bool checkCollision(SDL_Rect a, SDL_Rect b)
 		return false;
 	}
 
+
+	if (a.y <= (b.y + 11))
+	{
+		hitPoint = PADDLE_TOP;
+	}
+	if (a.y > (b.y + 11) && a.y < (b.y + 75))
+	{
+		hitPoint = PADDLE_MIDDLE;
+	}
+	if (a.y >= (b.y + 75))
+	{
+		hitPoint = PADDLE_BOTTOM;
+	}
 	//If none of the sides from A are outside B
 	return true;
 }
@@ -571,35 +619,41 @@ void gameLoop()
 
 	//Event handler
 	SDL_Event e;
-	//Handle events on queue
-	while (SDL_PollEvent(&e) != 0)
+
+	while (playingGame)
 	{
-		//User requests quit
-		if (e.type == SDL_QUIT)
+		//Handle events on queue
+		while (SDL_PollEvent(&e) != 0)
 		{
-			quit = true;
-			break;
+			//User requests quit
+			if (e.type == SDL_QUIT)
+			{
+				quit = true;
+				playingGame = false;
+				break;
+				break;
+			}
+
+			gball.handleEvent(&e);
+			gPaddle1.handleEvent(&e);
 		}
 
-		gball.handleEvent(&e);
-		gPaddle1.handleEvent(&e);
+		//Clear screen
+		SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 0xFF);
+		SDL_RenderClear(gRenderer);
+
+		gPaddle2.setPosition(610, gball.GetY() - 52);
+		gball.manageVelocity(gPaddle1.mCollider, gPaddle2.mCollider);
+
+		gBGTexture.render(0, 0);
+
+		gball.render();
+		gPaddle1.render();
+		gPaddle2.render();
+
+		//Update screen
+		SDL_RenderPresent(gRenderer);
 	}
-
-	//Clear screen
-	SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 0xFF);
-	SDL_RenderClear(gRenderer);
-
-	gPaddle2.setPosition(610, gball.GetY() - 52);
-	gball.manageVelocity(gPaddle1.mCollider, gPaddle2.mCollider);
-
-	gBGTexture.render(0, 0);
-
-	gball.render();
-	gPaddle1.render();
-	gPaddle2.render();
-
-	//Update screen
-	SDL_RenderPresent(gRenderer);
 }
 
 int main(int argc, char* args[])
