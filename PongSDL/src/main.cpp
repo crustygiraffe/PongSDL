@@ -273,11 +273,10 @@ int Texture::getHeight()
 //**************************************************************************************************************************************************************************************
 
 ball::ball()
+	: mVelocityX(0), mVelocityY(0)
 {
 	mPosition.x = 305;
 	mPosition.y = 225;
-	mVelocityX = 0;
-	mVelocityY = 0;
 
 	mCollider.w = 30;
 	mCollider.h = 30;
@@ -363,11 +362,11 @@ void ball::manageVelocity(SDL_Rect& paddle1, SDL_Rect& paddle2)
 //**************************************************************************************************************************************************************************************
 
 paddle::paddle(PADDLEID ID)
+	: mID(ID)
 {
 	mPosition.x = 0;
 	mPosition.y = 0;
 
-	mID = ID;
 	if(mID == PADDLE_1)
 		mCollider.x = 0;
 	else if (mID == PADDLE_2)
