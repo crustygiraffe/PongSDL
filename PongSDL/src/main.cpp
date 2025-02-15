@@ -32,6 +32,11 @@ bool loadMedia();
 
 //Main loop flag
 bool quit = false;
+bool playingGame = false;
+bool mainMenu = false;
+bool splashMenu = true;
+
+int OS = 2;
 
 //Frees media and shuts down SDL
 void close();
@@ -51,6 +56,19 @@ enum HITPOINT
 	PADDLE_TOP = 0,
 	PADDLE_MIDDLE = 1,
 	PADDLE_BOTTOM = 2
+};
+
+enum BUTTON_SPRITE
+{
+	WINDOWS_BUTTON = 0,
+	iOS_BUTTON = 1
+};
+
+enum OppSys
+{
+	WINDOWS_OS = 0,
+	iOS_OS = 1,
+	TOTAL_OS = 2
 };
 
 class Texture
@@ -84,6 +102,8 @@ public:
 
 	//Renders texture at given point
 	void render(int x, int y, SDL_Rect* clip = NULL, double angle = 0.0, SDL_Point* center = NULL, SDL_RendererFlip flip = SDL_FLIP_NONE);
+
+	void renderCenter(int x, int y, SDL_Rect* clip = NULL, double angle = 0.0, SDL_Point* center = NULL, SDL_RendererFlip flip = SDL_FLIP_NONE);
 
 	//Gets image dimensions
 	int getWidth();
@@ -155,17 +175,47 @@ private:
 
 	PADDLEID mID;
 };
-Texture gBGTexture;
 
+class button
+{
+public:
+
+	button(BUTTON_SPRITE sprite);
+
+	void setPosition(int x, int y);
+
+	void handleEvent(SDL_Event* e);
+
+	void render();
+
+	int GetWidth();
+	int GetHeight();
+
+private:
+	int mWidth;
+	int mHeight;
+
+	SDL_Point mPosition;
+
+	BUTTON_SPRITE mSprite;
+};
+
+Texture gBGTexture;
+Texture gTitleTexture;
 
 Texture gBallTexture;
-
 Texture gPaddleTexture;
+
+Texture gWinButtonTexture;
+Texture giOSButtonTexture;
 
 ball gball;
 
 paddle gPaddle1(PADDLE_1);
 paddle gPaddle2(PADDLE_2);
+
+button gWinButton(WINDOWS_BUTTON);
+button giOSButton(iOS_BUTTON);
 
 Texture::Texture()
 {
@@ -254,6 +304,25 @@ void Texture::setAlpha(Uint8 alpha)
 
 void Texture::render(int x, int y, SDL_Rect* clip, double angle, SDL_Point* center, SDL_RendererFlip flip)
 {
+	//Set rendering space and render to screen
+	SDL_Rect renderQuad = { x, y, mWidth, mHeight };
+
+	//Set clip rendering dimensions
+	if (clip != NULL)
+	{
+		renderQuad.w = clip->w;
+		renderQuad.h = clip->h;
+	}
+
+	//Render to screen
+	SDL_RenderCopyEx(gRenderer, mTexture, clip, &renderQuad, angle, center, flip);
+}
+
+void Texture::renderCenter(int x, int y, SDL_Rect* clip, double angle, SDL_Point* center, SDL_RendererFlip flip)
+{
+	x += ((SCREEN_WIDTH - mWidth) / 2);
+	y += ((SCREEN_HEIGHT - mHeight) / 2);
+
 	//Set rendering space and render to screen
 	SDL_Rect renderQuad = { x, y, mWidth, mHeight };
 
@@ -460,6 +529,128 @@ int paddle::GetY()
 
 //*********************************************************************************************************************************************************************************************************************
 
+//**************************************************************************************************************************************************************************************
+
+button::button(BUTTON_SPRITE sprite)
+{
+	mSprite = sprite;
+
+	if (sprite == iOS_BUTTON)
+	{
+		mWidth = 159;
+		mHeight = 77;
+		mPosition.x = ((SCREEN_WIDTH - mWidth) / 2) + 120;
+		mPosition.y = (SCREEN_HEIGHT - mHeight) / 2;
+	}
+	else if (sprite == WINDOWS_BUTTON)
+	{
+		mWidth = 159;
+		mHeight = 77;
+		mPosition.x = ((SCREEN_WIDTH - mWidth) / 2) - 120;
+		mPosition.y = (SCREEN_HEIGHT - mHeight) / 2;
+	}
+}
+
+void button::setPosition(int x, int y)
+{
+	mPosition.x = x;
+	mPosition.y = y;
+}
+
+void button::handleEvent(SDL_Event* e)
+{
+	if (mSprite == WINDOWS_BUTTON)
+	{
+		int x, y;
+		SDL_GetMouseState(&x, &y);
+
+		//Check if mouse is in button
+		bool inside = true;
+
+		//Mouse is left of the button
+		if (x < mPosition.x)
+		{
+			inside = false;
+		}
+		//Mouse is right of the button
+		else if (x > mPosition.x + mWidth)
+		{
+			inside = false;
+		}
+		//Mouse above the button
+		else if (y < mPosition.y)
+		{
+			inside = false;
+		}
+		//Mouse below the button
+		else if (y > mPosition.y + mHeight)
+		{
+			inside = false;
+		}
+		else
+		{
+				OS = WINDOWS_OS;
+				splashMenu = false;
+				mainMenu = true;
+		}
+	}
+	else if (mSprite == iOS_BUTTON)
+	{
+		int x, y;
+		x = e->tfinger.x * SCREEN_WIDTH;
+		y = e->tfinger.y * SCREEN_HEIGHT;
+
+		//Check if mouse is in button
+		bool inside = true;
+
+		//Mouse is left of the button
+		if (x < mPosition.x)
+		{
+			inside = false;
+		}
+		//Mouse is right of the button
+		else if (x > mPosition.x + mWidth)
+		{
+			inside = false;
+		}
+		//Mouse above the button
+		else if (y < mPosition.y)
+		{
+			inside = false;
+		}
+		//Mouse below the button
+		else if (y > mPosition.y + mHeight)
+		{
+			inside = false;
+		}
+		else
+		{
+				OS = iOS_OS;
+				splashMenu = false;
+				mainMenu = true;
+		}
+	}
+}
+
+void button::render()
+{
+	if (mSprite == WINDOWS_BUTTON)
+		gWinButtonTexture.render(mPosition.x, mPosition.y);
+	else if (mSprite == iOS_BUTTON)
+		giOSButtonTexture.render(mPosition.x, mPosition.y);
+}
+
+int button::GetWidth()
+{
+	return mWidth;
+}
+int button::GetHeight()
+{
+	return mHeight;
+}
+
+//*********************************************************************************************************************************************************************************************************************
+
 bool init()
 {
 	//Initialization flag
@@ -537,6 +728,24 @@ bool loadMedia()
 		printf("Failed to load background texture!\n");
 	}
 
+	if (!gTitleTexture.loadFromFile("res/gfx/Title.png"))
+	{
+		success = false;
+		printf("Failed to load title texture!\n");
+	}
+
+	if (!gWinButtonTexture.loadFromFile("res/gfx/Windows.png"))
+	{
+		success = false;
+		printf("Failed to load windows button texture!\n");
+	}
+
+	if (!giOSButtonTexture.loadFromFile("res/gfx/iOS.png"))
+	{
+		success = false;
+		printf("Failed to load iOS button texture!\n");
+	}
+
 	return success;
 }
 
@@ -546,6 +755,9 @@ void close()
 	gBallTexture.free();
 	gPaddleTexture.free();
 	gBGTexture.free();
+	gTitleTexture.free();
+	gWinButtonTexture.free();
+	giOSButtonTexture.free();
 
 	//Destroy window	
 	SDL_DestroyRenderer(gRenderer);
@@ -618,24 +830,95 @@ bool checkCollision(SDL_Rect a, SDL_Rect b)
 
 void gameLoop()
 {
-
 	//Event handler
 	SDL_Event e;
-		//Handle events on queue
-		while (SDL_PollEvent(&e) != 0)
-		{
-			//User requests quit
-			if (e.type == SDL_QUIT)
-			{
-				quit = true;
-				break;
-				break;
-			}
 
-			gball.handleEvent(&e);
-			gPaddle1.handleEvent(&e);
+	while (SDL_PollEvent(&e))
+	{
+		switch (e.type)
+		{
+		case SDL_QUIT:
+		{
+			quit = true;
+			break;
 		}
 
+		case SDL_MOUSEBUTTONDOWN:
+		{
+			if (splashMenu)
+			{
+				gWinButton.handleEvent(&e);
+				break;
+			}
+			else if (mainMenu && OS == WINDOWS_OS)
+			{
+				mainMenu = false;
+				playingGame = true;
+				break;
+			}
+		}
+
+		case SDL_MOUSEMOTION:
+		{
+				if (playingGame)
+				{
+					gPaddle1.handleEvent(&e);
+					break;
+				}
+		}
+
+		case SDL_FINGERMOTION:
+		{
+			if (playingGame)
+			{
+				gPaddle1.handleEvent(&e);
+				break;
+			}
+		}
+
+		case SDL_FINGERDOWN:
+		{
+			if (splashMenu)
+			{
+				giOSButton.handleEvent(&e);
+				break;
+			}
+			else if (mainMenu && OS == iOS_OS)
+			{
+				mainMenu = false;
+				playingGame = true;
+				break;
+			}
+		}
+
+		}
+	}
+
+	if (splashMenu)
+	{
+		SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 0xFF);
+		SDL_RenderClear(gRenderer);
+
+		gBGTexture.renderCenter(0, 0);
+		gWinButton.render();
+		giOSButton.render();
+
+		SDL_RenderPresent(gRenderer);
+		std::cout << "splash";
+	}
+
+	if (mainMenu)
+	{
+		SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 0xFF);
+		SDL_RenderClear(gRenderer);
+
+		gBGTexture.renderCenter(0, 0);
+		gTitleTexture.renderCenter(0, sin(SDL_GetTicks() / 100) * 4);
+
+		SDL_RenderPresent(gRenderer);
+	}
+	else if (playingGame)
+	{
 		//Clear screen
 		SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 0xFF);
 		SDL_RenderClear(gRenderer);
@@ -643,7 +926,7 @@ void gameLoop()
 		gPaddle2.setPosition(610, gball.GetY() - 52);
 		gball.manageVelocity(gPaddle1.mCollider, gPaddle2.mCollider);
 
-		gBGTexture.render(0, 0);
+		gBGTexture.renderCenter(0, 0);
 
 		gball.render();
 		gPaddle1.render();
@@ -651,6 +934,8 @@ void gameLoop()
 
 		//Update screen
 		SDL_RenderPresent(gRenderer);
+	}
+
 }
 
 int main(int argc, char* args[])
