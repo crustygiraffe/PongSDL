@@ -8,6 +8,7 @@
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_mixer.h>
+#include <SDL_ttf.h>
 #include <string>
 
 const int SCREEN_WIDTH = 640;
@@ -21,8 +22,16 @@ SDL_Window* gWindow = NULL;
 //The window renderer
 SDL_Renderer* gRenderer = NULL;
 
-int a = 0;
+TTF_Font* gFont = NULL;
+
+int p1Score = 0;
+int botScore = 0;
+int p2Score = 0;
 int hitPoint = 1;
+
+std::string p1ScoreStr = "0";
+std::string p2ScoreStr = "0";
+std::string botScoreStr = "0";
 
 //Starts up SDL and creates window
 bool init();
@@ -37,6 +46,9 @@ bool mainMenu = false;
 bool splashMenu = true;
 
 int OS = 2;
+
+SDL_Color white = { 255, 255, 255 };
+SDL_Color black = { 0, 0, 0 };
 
 //Frees media and shuts down SDL
 void close();
@@ -70,6 +82,14 @@ enum OppSys
 	iOS_OS = 1,
 	TOTAL_OS = 2
 };
+
+enum pCount
+{
+	SINGLE_PLAYER = 1,
+	TWO_PLAYER = 2
+};
+
+int gameMode = SINGLE_PLAYER;
 
 class Texture
 {
@@ -200,8 +220,13 @@ private:
 	BUTTON_SPRITE mSprite;
 };
 
+Texture gScoreTextTexture;
+Texture gScoreTexture;
+std::string score = "0 || 0";
+
 Texture gBGTexture;
 Texture gTitleTexture;
+Texture gPanelTexture;
 
 Texture gBallTexture;
 Texture gPaddleTexture;
@@ -213,6 +238,8 @@ ball gball;
 
 paddle gPaddle1(PADDLE_1);
 paddle gPaddle2(PADDLE_2);
+paddle g2pPaddle1(PADDLE_1_2P);
+paddle g2pPaddle2(PADDLE_2_2P);
 
 button gWinButton(WINDOWS_BUTTON);
 button giOSButton(iOS_BUTTON);
@@ -271,6 +298,42 @@ bool Texture::loadFromFile(std::string path)
 	mTexture = newTexture;
 	return mTexture != NULL;
 }
+
+#if defined(SDL_TTF_MAJOR_VERSION)
+bool Texture::loadFromRenderedText(std::string textureText, SDL_Color textColor)
+{
+	//Get rid of preexisting texture
+	free();
+
+	//Render text surface
+	SDL_Surface* textSurface = TTF_RenderText_Solid(gFont, textureText.c_str(), textColor);
+	if (textSurface == NULL)
+	{
+		printf("Unable to render text surface! SDL_ttf Error: %s\n", TTF_GetError());
+	}
+	else
+	{
+		//Create texture from surface pixels
+		mTexture = SDL_CreateTextureFromSurface(gRenderer, textSurface);
+		if (mTexture == NULL)
+		{
+			printf("Unable to create texture from rendered text! SDL Error: %s\n", SDL_GetError());
+		}
+		else
+		{
+			//Get image dimensions
+			mWidth = textSurface->w;
+			mHeight = textSurface->h;
+		}
+
+		//Get rid of old surface
+		SDL_FreeSurface(textSurface);
+	}
+
+	//Return success
+	return mTexture != NULL;
+}
+#endif
 
 void Texture::free()
 {
@@ -413,9 +476,15 @@ void ball::SetVelocityXY(int x, int y)
 
 void ball::manageVelocity(SDL_Rect& paddle1, SDL_Rect& paddle2)
 {
-	if (mPosition.x + 30 >= 640 || mPosition.x <= 0)
+	if (mPosition.x + 30 >= 640)
 	{
 		mVelocityX = -mVelocityX;
+		p1Score++;
+	}
+	else if (mPosition.x <= 0)
+	{
+		mVelocityX = -mVelocityX;
+		botScore++;
 	}
 	else if (checkCollision(mCollider, paddle1))
 	{
@@ -473,9 +542,9 @@ paddle::paddle(PADDLEID ID)
 
 	mID = ID;
 
-	if(mID == PADDLE_1)
+	if(mID == PADDLE_1 || mID == PADDLE_1_2P)
 		mCollider.x = 0;
-	else if (mID == PADDLE_2)
+	else if (mID == PADDLE_2 || mID == PADDLE_2_2P)
 		mCollider.x = 610;
 	mCollider.y = 0;
 	mCollider.w = 30;
@@ -492,24 +561,69 @@ void paddle::setPosition(int x, int y)
 
 void paddle::handleEvent(SDL_Event* e)
 {
-	if (mID == PADDLE_1)
+	if (gameMode == SINGLE_PLAYER)
 	{
-		int x, y;
-		SDL_GetMouseState(&x, &y);
+		if (mID == PADDLE_1)
+		{
+			int x, y;
+			SDL_GetMouseState(&x, &y);
 
-		if (e->type == SDL_MOUSEMOTION)
-		{
-			mCollider.y = mPosition.y = y - 51;
-		}
-		else if (e->type == SDL_FINGERMOTION)
-		{
-			touchLocation.x = e->tfinger.x * SCREEN_WIDTH;
-			touchLocation.y = e->tfinger.y * SCREEN_HEIGHT;
-			mCollider.y = mPosition.y = touchLocation.y - 51;
+			if (e->type == SDL_MOUSEMOTION)
+			{
+				mCollider.y = mPosition.y = y - 51;
+			}
+			else if (e->type == SDL_FINGERMOTION)
+			{
+				touchLocation.x = e->tfinger.x * SCREEN_WIDTH;
+				touchLocation.y = e->tfinger.y * SCREEN_HEIGHT;
+				mCollider.y = mPosition.y = touchLocation.y - 51;
+			}
 		}
 	}
-	else if (mID == PADDLE_2)
+	else if (gameMode == TWO_PLAYER)
 	{
+		if (mID == PADDLE_1_2P)
+		{
+			int x, y;
+			SDL_GetMouseState(&x, &y);
+
+			if (e->type == SDL_KEYDOWN && e->key.keysym.sym == SDLK_w)
+			{
+				mCollider.y = mPosition.y -= 10;
+			}
+			else if (e->type == SDL_KEYDOWN && e->key.keysym.sym == SDLK_s)
+			{
+				mCollider.y = mPosition.y += 10;
+			}
+			else if (e->type == SDL_FINGERMOTION)
+			{
+				touchLocation.x = e->tfinger.x * SCREEN_WIDTH;
+				touchLocation.y = e->tfinger.y * SCREEN_HEIGHT;
+				if (touchLocation.x <= 320)
+					mCollider.y = mPosition.y = touchLocation.y - 51;
+			}
+		}
+		else if (mID == PADDLE_2_2P)
+		{
+			int x, y;
+			SDL_GetMouseState(&x, &y);
+
+			if (e->type == SDL_KEYDOWN && e->key.keysym.sym == SDLK_UP)
+			{
+				mCollider.y = mPosition.y -= 10;
+			}
+			else if (e->type == SDL_KEYDOWN && e->key.keysym.sym == SDLK_DOWN)
+			{
+				mCollider.y = mPosition.y += 10;
+			}
+			else if (e->type == SDL_FINGERMOTION)
+			{
+				touchLocation.x = e->tfinger.x * SCREEN_WIDTH;
+				touchLocation.y = e->tfinger.y * SCREEN_HEIGHT;
+				if (touchLocation.x > 320)
+					mCollider.y = mPosition.y = touchLocation.y - 51;
+			}
+		}
 	}
 }
 
@@ -698,6 +812,13 @@ bool init()
 					printf("SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
 					success = false;
 				}
+
+				//Initialize SDL_ttf
+				if (TTF_Init() == -1)
+				{
+					printf("SDL_ttf could not initialize! SDL_ttf Error: %s\n", TTF_GetError());
+					success = false;
+				}
 			}
 		}
 	}
@@ -746,11 +867,43 @@ bool loadMedia()
 		printf("Failed to load iOS button texture!\n");
 	}
 
+	if (!gPanelTexture.loadFromFile("res/gfx/Panel.png"))
+	{
+		success = false;
+		printf("Failed to load Panel texture!\n");
+	}
+
+	gFont = TTF_OpenFont("res/ttf/Bubbly_Pixels.ttf", 28);
+	if (gFont == NULL)
+	{
+		printf("Failed to load bubby pixels font! SDL_ttf Error: %s\n", TTF_GetError());
+		success = false;
+	}
+	else
+	{
+		//Render text
+		SDL_Color textColor = { 0, 0, 0 };
+		if (!gScoreTextTexture.loadFromRenderedText("Score", textColor))
+		{
+			printf("Failed to render score text texture!\n");
+			success = false;
+		}
+	}
+
 	return success;
 }
 
 void close()
 {
+
+	//Free loaded images
+	gScoreTextTexture.free();
+	gScoreTexture.free();
+
+	//Free global font
+	TTF_CloseFont(gFont);
+	gFont = NULL;
+
 	///Free Textures
 	gBallTexture.free();
 	gPaddleTexture.free();
@@ -758,6 +911,7 @@ void close()
 	gTitleTexture.free();
 	gWinButtonTexture.free();
 	giOSButtonTexture.free();
+	gPanelTexture.free();
 
 	//Destroy window	
 	SDL_DestroyRenderer(gRenderer);
@@ -766,6 +920,7 @@ void close()
 	gRenderer = NULL;
 
 	//Quit SDL subsystems
+	TTF_Quit();
 	IMG_Quit();
 	SDL_Quit();
 }
@@ -812,20 +967,47 @@ bool checkCollision(SDL_Rect a, SDL_Rect b)
 	}
 
 
-	if (a.y <= (b.y + 11))
-	{
-		hitPoint = PADDLE_TOP;
-	}
-	if (a.y > (b.y + 11) && a.y < (b.y + 75))
+
+	if (a.y > (b.y + 0) && a.y < (b.y + 90))
 	{
 		hitPoint = PADDLE_MIDDLE;
 	}
-	if (a.y >= (b.y + 75))
+	if (a.y >= (b.y + 90))
 	{
 		hitPoint = PADDLE_BOTTOM;
 	}
 	//If none of the sides from A are outside B
 	return true;
+}
+
+void loadScoreText()
+{
+	p1ScoreStr = std::to_string(p1Score);
+	botScoreStr = std::to_string(botScore);
+
+	score = p1ScoreStr + " || " + botScoreStr;
+	if (!gScoreTexture.loadFromRenderedText(score, black))
+	{
+		printf("Failed to render score texture!\n");
+	}
+}
+
+void botAI(int level)
+{
+	int velocityY = 0;
+
+	if (gball.GetVelocityX() > 0)
+	{
+		if (gPaddle2.GetY() < gball.GetY())
+		{
+			velocityY = 9;
+		}
+		if (gPaddle2.GetY() > gball.GetY())
+		{
+			velocityY = -9;
+		}
+	}
+	gPaddle2.setPosition(610, (gPaddle2.GetY() + velocityY));
 }
 
 void gameLoop()
@@ -904,7 +1086,6 @@ void gameLoop()
 		giOSButton.render();
 
 		SDL_RenderPresent(gRenderer);
-		std::cout << "splash";
 	}
 
 	if (mainMenu)
@@ -923,7 +1104,7 @@ void gameLoop()
 		SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 0xFF);
 		SDL_RenderClear(gRenderer);
 
-		gPaddle2.setPosition(610, gball.GetY() - 52);
+		botAI(1);
 		gball.manageVelocity(gPaddle1.mCollider, gPaddle2.mCollider);
 
 		gBGTexture.renderCenter(0, 0);
@@ -931,6 +1112,11 @@ void gameLoop()
 		gball.render();
 		gPaddle1.render();
 		gPaddle2.render();
+
+
+		gScoreTextTexture.render((SCREEN_WIDTH - gScoreTextTexture.getWidth()) / 2, 25);
+		loadScoreText();
+		gScoreTexture.render((SCREEN_WIDTH - gScoreTextTexture.getWidth()) / 2, 75);
 
 		//Update screen
 		SDL_RenderPresent(gRenderer);
@@ -954,6 +1140,7 @@ int main(int argc, char* args[])
 		}
 		else
 		{
+			gPanelTexture.setAlpha(150);
 			gball.SetVelocityXY(10, 10);
 			#ifdef __EMSCRIPTEN__
 				emscripten_set_main_loop(gameLoop, 0, 1);
